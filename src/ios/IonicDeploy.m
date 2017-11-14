@@ -102,22 +102,28 @@ static NSOperationQueue *delegateQueue;
 #endif
 }
 
+- (NSString*) prefix: (NSString *) key {
+    // return [NSString stringWithFormat:@"%@-%@", self.appId, key]
+    return key;
+}
+
 - (void) pluginInitialize {
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
+    self.appId = [prefs stringForKey:[self prefix:@"ionicdeploy_app_id"]];
     self.cordova_js_resource = [[NSBundle mainBundle] pathForResource:@"www/cordova" ofType:@"js"];
     self.serialQueue = dispatch_queue_create("Deploy Plugin Queue", NULL);
-    self.version_label = [prefs stringForKey:@"ionicdeploy_version_label"];
+    self.version_label = [prefs stringForKey:[self prefix:@"ionicdeploy_version_label"]];
     if(self.version_label == nil) {
         self.version_label = NO_DEPLOY_LABEL;
     }
     self.maxVersions = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"IonMaxVersions"] intValue];
-    self.appId = [NSString stringWithFormat:@"%@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"IonAppId"]];
+    
     self.deploy_server = [NSString stringWithFormat:@"%@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"IonApi"]];
     self.auto_update = [NSString stringWithFormat:@"%@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"IonUpdateMethod"]];
-    self.channel_tag = [prefs stringForKey:@"channel"];
+    self.channel_tag = [prefs stringForKey:[self prefix:@"channel"]];
     if (self.channel_tag == nil) {
         self.channel_tag = [NSString stringWithFormat:@"%@", [[NSBundle mainBundle] objectForInfoDictionaryKey:@"IonChannelName"]];
-        [prefs setObject: self.channel_tag forKey: @"channel"];
+        [prefs setObject: self.channel_tag forKey: [self prefix:@"channel"]];
         [prefs synchronize];
     }
 
@@ -125,15 +131,15 @@ static NSOperationQueue *delegateQueue;
 
     if (![self.auto_update isEqualToString:@"none"] && [self parseCheckResponse:[self postDeviceDetails]]) {
         if (![self.auto_update isEqualToString:@"auto"]) {
-            [prefs setBool:NO forKey:@"show_splash"];
+            [prefs setBool:NO forKey:[self prefix:@"show_splash"]];
             [prefs synchronize];
         }
         [self _download];
     } else {
-        [prefs setBool:NO forKey:@"show_splash"];
+        [prefs setBool:NO forKey:[self prefix:@"show_splash"]];
         [prefs synchronize];
-        NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:@"uuid"];
-        NSString *ignore = [prefs stringForKey:@"ionicdeploy_version_ignore"];
+        NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"uuid"]];
+        NSString *ignore = [prefs stringForKey:[self prefix:@"ionicdeploy_version_ignore"]];
         if (ignore == nil) {
             ignore = NOTHING_TO_IGNORE;
         }
@@ -182,7 +188,7 @@ static NSOperationQueue *delegateQueue;
 
 - (NSString *) getUUID {
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
-    NSString *uuid = [prefs stringForKey:@"uuid"];
+    NSString *uuid = [prefs stringForKey:[self prefix:@"uuid"]];
     if(uuid == nil) {
         uuid = NO_DEPLOY_LABEL;
     }
@@ -211,8 +217,8 @@ static NSOperationQueue *delegateQueue;
     NSLog(@"updating version label");
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
     NSString *ionicdeploy_version_label = [self constructVersionLabel:[self getUUID]];
-    [prefs setObject:ionicdeploy_version_label forKey: @"ionicdeploy_version_label"];
-    [prefs setObject:ignore_version forKey: @"ionicdeploy_version_ignore"];
+    [prefs setObject:ionicdeploy_version_label forKey: [self prefix:@"ionicdeploy_version_label"]];
+    [prefs setObject:ignore_version forKey: [self prefix:@"ionicdeploy_version_ignore"]];
     [prefs synchronize];
     self.version_label = ionicdeploy_version_label;
 }
@@ -228,8 +234,8 @@ static NSOperationQueue *delegateQueue;
         if(![self.version_label isEqualToString: ionicdeploy_version_label]) {
             self.ignore_deploy = true;
             [self updateVersionLabel:uuid];
-            [prefs setObject: @"" forKey: @"uuid"];
-            [prefs setBool:YES forKey:@"show_splash"];
+            [prefs setObject: @"" forKey: [self prefix:@"uuid"]];
+            [prefs setBool:YES forKey:[self prefix:@"show_splash"]];
             [prefs synchronize];
         }
     }
@@ -262,7 +268,7 @@ static NSOperationQueue *delegateQueue;
 
 - (void) check:(CDVInvokedUrlCommand *)command {
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
-    [prefs setObject: self.channel_tag forKey: @"channel"];
+    [prefs setObject: self.channel_tag forKey: [self prefix:@"channel"]];
     [prefs synchronize];
 
     if([self.appId isEqual: @"YOUR_APP_ID"]) {
@@ -312,14 +318,14 @@ static NSOperationQueue *delegateQueue;
 // private
 - (Boolean) parseCheckResponse: (JsonHttpResponse)result {
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
-    NSString *our_version = [[NSUserDefaults standardUserDefaults] objectForKey:@"uuid"];
+    NSString *our_version = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"uuid"]];
 
     if(result.json != nil) {
         NSLog(@"JSON: %@", result.json);
         NSDictionary *resp = [result.json objectForKey: @"data"];
         NSNumber *compatible = [resp valueForKey:@"compatible"];
         NSNumber *update_available = [resp valueForKey:@"available"];
-        NSString *ignore_version = [prefs objectForKey:@"ionicdeploy_version_ignore"];
+        NSString *ignore_version = [prefs objectForKey:[self prefix:@"ionicdeploy_version_ignore"]];
 
         NSLog(@"compatible: %@", (compatible) ? @"True" : @"False");
         NSLog(@"available: %@", (update_available) ? @"True" : @"False");
@@ -331,7 +337,7 @@ static NSOperationQueue *delegateQueue;
             NSLog(@"update uuid: %@", update_uuid);
 
             if(![update_uuid isEqual:ignore_version] && ![update_uuid isEqual:our_version]) {
-                [prefs setObject: update_uuid forKey: @"upstream_uuid"];
+                [prefs setObject: update_uuid forKey: [self prefix:@"upstream_uuid"]];
                 [prefs synchronize];
                 self.last_update = resp;
             } else {
@@ -367,13 +373,13 @@ static NSOperationQueue *delegateQueue;
 - (void) _download {
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
 
-    NSString *upstream_uuid = [[NSUserDefaults standardUserDefaults] objectForKey:@"upstream_uuid"];
+    NSString *upstream_uuid = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"upstream_uuid"]];
 
     NSLog(@"Upstream UUID: %@", upstream_uuid);
 
     if (upstream_uuid != nil && [self hasVersion:upstream_uuid]) {
         // Set the current version to the upstream version (we already have this version)
-        [prefs setObject:upstream_uuid forKey:@"uuid"];
+        [prefs setObject:upstream_uuid forKey:[self prefix:@"uuid"]];
         [prefs synchronize];
         if (self.callbackId) {
             [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"true"] callbackId:self.callbackId];
@@ -381,7 +387,7 @@ static NSOperationQueue *delegateQueue;
             [self _extract];
             if ([self.auto_update isEqualToString:@"auto"]) {
                 if ([self isDebug]) {
-                    [prefs setBool:NO forKey:@"show_splash"];
+                    [prefs setBool:NO forKey:[self prefix:@"show_splash"]];
                     [prefs synchronize];
                     [self showDebugDialog];
                 } else {
@@ -411,7 +417,7 @@ static NSOperationQueue *delegateQueue;
 - (void) _extract {
     self.ignore_deploy = false;
 
-    NSString *upstream_uuid = [[NSUserDefaults standardUserDefaults] objectForKey:@"upstream_uuid"];
+    NSString *upstream_uuid = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"upstream_uuid"]];
 
     if(upstream_uuid != nil && [self hasVersion:upstream_uuid]) {
         [self updateVersionLabel:NOTHING_TO_IGNORE];
@@ -419,7 +425,7 @@ static NSOperationQueue *delegateQueue;
     } else {
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
         NSString *libraryDirectory = [paths objectAtIndex:0];
-        NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:@"uuid"];
+        NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"uuid"]];
         NSString *filePath = [NSString stringWithFormat:@"%@/%@", libraryDirectory, @"www.zip"];
         NSString *extractPath = [NSString stringWithFormat:@"%@/%@/", libraryDirectory, uuid];
 
@@ -479,8 +485,8 @@ static NSOperationQueue *delegateQueue;
 
 - (void) doRedirect {
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
-    NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:@"uuid"];
-    NSString *ignore = [prefs stringForKey:@"ionicdeploy_version_ignore"];
+    NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"uuid"]];
+    NSString *ignore = [prefs stringForKey:[self prefix:@"ionicdeploy_version_ignore"]];
     if (ignore == nil) {
         ignore = NOTHING_TO_IGNORE;
     }
@@ -543,7 +549,7 @@ static NSOperationQueue *delegateQueue;
                     // Tell the swizzled splash it can hide after 3 seconds
                     // TODO: There HAS to be a more elegant way to accomplish this...
                     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (uint64_t) 3 * NSEC_PER_SEC), dispatch_get_main_queue(), CFBridgingRelease(CFBridgingRetain(^(void) {
-                        [prefs setBool:NO forKey:@"show_splash"];
+                        [prefs setBool:NO forKey:[self prefix:@"show_splash"]];
                         [prefs synchronize];
                     })));
                 });
@@ -557,7 +563,7 @@ static NSOperationQueue *delegateQueue;
     NSString *endpoint = [NSString stringWithFormat:@"/apps/%@/channels/check-device/", self.appId];
     NSString *url = [NSString stringWithFormat:@"%@%@", baseUrl, endpoint];
     NSDictionary* headers = @{@"Content-Type": @"application/json", @"accept": @"application/json"};
-    NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:@"uuid"];
+    NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"uuid"]];
     NSString *app_version = [[self deconstructVersionLabel:self.version_label] firstObject];
 
     NSMutableDictionary *deviceDict = [NSMutableDictionary
@@ -611,7 +617,7 @@ static NSOperationQueue *delegateQueue;
 
 - (NSMutableArray *) getMyVersions {
     NSMutableArray *versions;
-    NSArray *versionsLoaded = [[NSUserDefaults standardUserDefaults] arrayForKey:@"my_versions"];
+    NSArray *versionsLoaded = [[NSUserDefaults standardUserDefaults] arrayForKey:[self prefix:@"my_versions"]];
     if (versionsLoaded != nil) {
         versions = [versionsLoaded mutableCopy];
     } else {
@@ -647,7 +653,7 @@ static NSOperationQueue *delegateQueue;
         }
     }
 
-    [prefs setObject:newVersions forKey:@"my_versions"];
+    [prefs setObject:newVersions forKey:[self prefix:@"my_versions"]];
     [prefs synchronize];
 }
 
@@ -687,7 +693,7 @@ static NSOperationQueue *delegateQueue;
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
     NSMutableArray *versions = [self getMyVersions];
 
-    int versionCount = (int) [[NSUserDefaults standardUserDefaults] integerForKey:@"version_count"];
+    int versionCount = (int) [[NSUserDefaults standardUserDefaults] integerForKey:[self prefix:@"version_count"]];
 
     if (versionCount) {
         versionCount += 1;
@@ -695,14 +701,14 @@ static NSOperationQueue *delegateQueue;
         versionCount = 1;
     }
 
-    [prefs setInteger:versionCount forKey:@"version_count"];
+    [prefs setInteger:versionCount forKey:[self prefix:@"version_count"]];
     [prefs synchronize];
 
     NSString *versionString = [NSString stringWithFormat:@"%i|%@", versionCount, uuid];
 
     [versions addObject:versionString];
 
-    [prefs setObject:versions forKey:@"my_versions"];
+    [prefs setObject:versions forKey:[self prefix:@"my_versions"]];
     [prefs synchronize];
 
     [self cleanupVersions];
@@ -712,7 +718,7 @@ static NSOperationQueue *delegateQueue;
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
     NSMutableArray *versions = [self getMyVersions];
 
-    int versionCount = (int) [[NSUserDefaults standardUserDefaults] integerForKey:@"version_count"];
+    int versionCount = (int) [[NSUserDefaults standardUserDefaults] integerForKey:[self prefix:@"version_count"]];
 
     if (versionCount && versionCount > self.maxVersions) {
         NSInteger threshold = versionCount - self.maxVersions;
@@ -729,7 +735,7 @@ static NSOperationQueue *delegateQueue;
         }
 
         NSLog(@"Version Count: %i", (int) [versions count]);
-        [prefs setObject:versions forKey:@"my_versions"];
+        [prefs setObject:versions forKey:[self prefix:@"my_versions"]];
         [prefs synchronize];
     }
 }
@@ -760,7 +766,7 @@ static NSOperationQueue *delegateQueue;
     NSString *pathToFolder = [NSString stringWithFormat:@"%@/%@/", libraryDirectory, uuid];
 
     if ([uuid isEqualToString: currentUUID]) {
-        [prefs setObject: @"" forKey: @"uuid"];
+        [prefs setObject: @"" forKey: [self prefix:@"uuid"]];
         [prefs synchronize];
     }
 
@@ -805,7 +811,7 @@ static NSOperationQueue *delegateQueue;
         [self.commandDelegate sendPluginResult:pluginResult callbackId:self.callbackId];
     }
 
-    [prefs setBool:NO forKey:@"show_splash"];
+    [prefs setBool:NO forKey:[self prefix:@"show_splash"]];
     [prefs synchronize];
 }
 
@@ -813,10 +819,10 @@ static NSOperationQueue *delegateQueue;
 {
     // Save the upstream_uuid (what we just downloaded) to the uuid preference
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
-    NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:@"uuid"];
-    NSString *upstream_uuid = [[NSUserDefaults standardUserDefaults] objectForKey:@"upstream_uuid"];
+    NSString *uuid = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"uuid"]];
+    NSString *upstream_uuid = [[NSUserDefaults standardUserDefaults] objectForKey:[self prefix:@"upstream_uuid"]];
 
-    [prefs setObject: upstream_uuid forKey: @"uuid"];
+    [prefs setObject: upstream_uuid forKey: [self prefix:@"uuid"]];
     [prefs synchronize];
 
     NSLog(@"UUID is: %@ and upstream_uuid is: %@", uuid, upstream_uuid);
@@ -830,7 +836,7 @@ static NSOperationQueue *delegateQueue;
         [self _extract];
         if ([self.auto_update isEqualToString:@"auto"]) {
             if ([self isDebug]) {
-                [prefs setBool:NO forKey:@"show_splash"];
+                [prefs setBool:NO forKey:[self prefix:@"show_splash"]];
                 [prefs synchronize];
                 [self showDebugDialog];
             } else {
