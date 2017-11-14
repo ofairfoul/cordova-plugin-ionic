@@ -103,13 +103,14 @@ static NSOperationQueue *delegateQueue;
 }
 
 - (NSString*) prefix: (NSString *) key {
-    // return [NSString stringWithFormat:@"%@-%@", self.appId, key]
-    return key;
+    NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
+    return [NSString stringWithFormat:@"%@-%@", [prefs stringForKey:@"ionicdeploy_app_id"], key];
+    // return key;
 }
 
 - (void) pluginInitialize {
     NSUserDefaults *prefs = [NSUserDefaults standardUserDefaults];
-    self.appId = [prefs stringForKey:[self prefix:@"ionicdeploy_app_id"]];
+    self.appId = [prefs stringForKey:@"ionicdeploy_app_id"];
     self.cordova_js_resource = [[NSBundle mainBundle] pathForResource:@"www/cordova" ofType:@"js"];
     self.serialQueue = dispatch_queue_create("Deploy Plugin Queue", NULL);
     self.version_label = [prefs stringForKey:[self prefix:@"ionicdeploy_version_label"]];

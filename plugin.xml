@@ -16,9 +16,9 @@
     </js-module>
 
     <!--<preference name="APP_ID" />-->
-    <!--<preference name="CHANNEL_NAME" />-->
+    <preference name="CHANNEL_NAME" default="Production" />
     <preference name="UPDATE_API" default="https://api.ionicjs.com" />
-    <preference name="UPDATE_METHOD" default="background" />
+    <preference name="UPDATE_METHOD" default="auto" />
     <preference name="MAX_STORE" default="2" />
 
     <!-- ios -->
@@ -31,10 +31,6 @@
             <feature name="IonicCordovaCommon">
                 <param name="ios-package" value="IonicCordovaCommon" onload="true" />
             </feature>
-        </config-file>
-
-        <config-file target="*-Info.plist" parent="IonAppId">
-            <string>$APP_ID</string>
         </config-file>
 
         <config-file target="*-Info.plist" parent="IonChannelName">
